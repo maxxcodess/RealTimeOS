@@ -139,8 +139,12 @@ TaskHandle_t communication_handle;
 TaskHandle_t matrix_handle;
 TaskHandle_t priority_handle;
 
-static long int timeTick1 = 0, timeTick2 = 0;
-
+static long int timeTick1 = 0, timeTick2 = 0, comm_priority = 0, mat_priority = 0;
+/*
+timeTick  :  used to track time taken by time both tasks individually
+	timeTick2 = matrix  | timeTick1 = comm
+x_handle  :  used to check the task prioriy
+*/
 #define SIZE 10
 #define ROW SIZE
 #define COL SIZE
@@ -190,6 +194,10 @@ static void matrix_task()
 			}
 		}
 		vTaskDelay(100);
+
+		//Print timeTick value and also set to zero when task is completed
+		printf("Time matrixTask = %time\n", timeTick2);
+		timeTick2 = 0;
 	}
 }
 
@@ -203,6 +211,9 @@ static void communication_task()
 		printf("Data sent!\n");
 		fflush(stdout);
 		vTaskDelay(100);
+		//Print timeTick value and also set to zero when task is completed
+		printf("Time commTask = %time\n", timeTick1);
+		timeTick1 = 0;
 	}
 }
 
@@ -211,9 +222,37 @@ void priority_set_task()
 {
 	while (1)
 	{
-		printf("Time commTask = %time\n", timeTick1);
-		printf("Time matrixTask = %time\n", timeTick2);
-		vTaskDelay(1000);
+		/********* Communication Handle *********
+		  checks value of timeTick and prev x_priority status
+		*/
+		if (timeTick1 > 200 && timeTick1 < 1000 && comm_priority != 2)
+		{
+			vTaskPrioritySet(communication_handle, tskIDLE_PRIORITY + 1);
+			comm_priority = 2;
+			printf("Comm Task consuming 200ms ..Priority increased to 2\n");
+		}
+		if (timeTick1 > 1000 && comm_priority != 4)
+		{
+			vTaskPrioritySet(communication_handle, tskIDLE_PRIORITY + 3);
+			comm_priority = 4;
+			printf("Comm Task exceeded 1000ms ..Priority reduced to 4\n");
+		}
+
+		/********* Matrix Handle *********		  
+		  checks value of timeTick and prev x_priority status
+		*/
+		if (timeTick2 > 200  &&  timeTick2 < 1000  &&  mat_priority != 2)
+		{
+			vTaskPrioritySet(matrix_handle, tskIDLE_PRIORITY + 1);
+			mat_priority = 2;
+			printf("matrix Task consuming 200ms ..Priority increased to 2\n");
+		}
+		if (timeTick2 > 1000  &&  mat_priority != 4)
+		{
+			vTaskPrioritySet(matrix_handle, tskIDLE_PRIORITY + 3);
+			mat_priority = 4;
+			printf("matrix Task exceeded 1000ms ..Priority reduced to 4\n");
+		}
 	}
 }
 
@@ -233,7 +272,7 @@ int main( void )
 
 	xTaskCreate((pdTASK_CODE)matrix_task, (signed char*)"Matrix", 1000, NULL, 3, &matrix_handle);
 	xTaskCreate((pdTASK_CODE)communication_task, (signed char*)"Communication", configMINIMAL_STACK_SIZE, NULL, 1, &communication_handle);
-	xTaskCreate(priority_set_task, "Task_2", configMINIMAL_STACK_SIZE, NULL, 1, &priority_handle);
+	xTaskCreate(priority_set_task, "Priority", configMINIMAL_STACK_SIZE, NULL, 1, &priority_handle);
 
 	vTaskStartScheduler();
 	while (1);
@@ -325,8 +364,9 @@ void vApplicationTickHook( void )
 	#endif /* mainCREATE_SIMPLE_BLINKY_DEMO_ONLY */
 
 	timeTick1++;
-	(communication_handle == xTaskGetCurrentTaskHandle()) ? timeTick1++ : 0;
-	(matrix_handle == xTaskGetCurrentTaskHandle()) ? timeTick2++ : 0;
+	timeTick2++;
+	//(communication_handle == xTaskGetCurrentTaskHandle()) ? timeTick1++ : 0;
+	//(matrix_handle == xTaskGetCurrentTaskHandle()) ? timeTick2++ : 0;
 
 	/*
 	if (communication_handle == xTaskGetCurrentTaskHandle())
