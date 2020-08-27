@@ -133,6 +133,89 @@ StackType_t uxTimerTaskStack[ configTIMER_TASK_STACK_DEPTH ];
 static BaseType_t xTraceRunning = pdTRUE;
 
 /*-----------------------------------------------------------*/
+/****************************************************************************************************/
+
+TaskHandle_t communication_handle;
+TaskHandle_t matrix_handle;
+TaskHandle_t priority_handle;
+
+static long int timeTick1 = 0, timeTick2 = 0;
+
+#define SIZE 10
+#define ROW SIZE
+#define COL SIZE
+static void matrix_task()
+{
+	int i;
+	double** a = (double**)pvPortMalloc(ROW * sizeof(double*));
+	for (i = 0; i < ROW; i++) a[i] = (double*)pvPortMalloc(COL * sizeof(double));
+	double** b = (double**)pvPortMalloc(ROW * sizeof(double*));
+	for (i = 0; i < ROW; i++) b[i] = (double*)pvPortMalloc(COL * sizeof(double));
+	double** c = (double**)pvPortMalloc(ROW * sizeof(double*));
+	for (i = 0; i < ROW; i++) c[i] = (double*)pvPortMalloc(COL * sizeof(double));
+
+	double sum = 0.0;
+	int j, k, l;
+
+	for (i = 0; i < SIZE; i++) {
+		for (j = 0; j < SIZE; j++) {
+			a[i][j] = 1.5;
+			b[i][j] = 2.6;
+		}
+	}
+
+	while (1) {
+		/*
+		* In an embedded systems, matrix multiplication would block the CPU for a long time
+		* but since this is a PC simulator we must add one additional dummy delay.
+		*/
+		long simulationdelay;
+		for (simulationdelay = 0; simulationdelay < 1000000000; simulationdelay++)
+			;
+		for (i = 0; i < SIZE; i++) {
+			for (j = 0; j < SIZE; j++) {
+				c[i][j] = 0.0;
+			}
+		}
+
+		for (i = 0; i < SIZE; i++) {
+			for (j = 0; j < SIZE; j++) {
+				sum = 0.0;
+				for (k = 0; k < SIZE; k++) {
+					for (l = 0; l < 10; l++) {
+						sum = sum + a[i][k] * b[k][j];
+					}
+				}
+				c[i][j] = sum;
+			}
+		}
+		vTaskDelay(100);
+	}
+}
+
+
+static void communication_task()
+{
+	while (1) {
+		printf("Sending data...\n");
+		fflush(stdout);
+		vTaskDelay(100);
+		printf("Data sent!\n");
+		fflush(stdout);
+		vTaskDelay(100);
+	}
+}
+
+
+void priority_set_task()
+{
+	while (1)
+	{
+		printf("Time commTask = %time\n", timeTick1);
+		printf("Time matrixTask = %time\n", timeTick2);
+		vTaskDelay(1000);
+	}
+}
 
 
 int main( void )
@@ -146,10 +229,15 @@ int main( void )
 	See http://www.FreeRTOS.org/trace for more information. */
 	vTraceEnable( TRC_START );
 
+	//xTaskHandle matrix_handle, communication_handle, priority_handle ;
 
-	
+	xTaskCreate((pdTASK_CODE)matrix_task, (signed char*)"Matrix", 1000, NULL, 3, &matrix_handle);
+	xTaskCreate((pdTASK_CODE)communication_task, (signed char*)"Communication", configMINIMAL_STACK_SIZE, NULL, 1, &communication_handle);
+	xTaskCreate(priority_set_task, "Task_2", configMINIMAL_STACK_SIZE, NULL, 1, &priority_handle);
+
 	vTaskStartScheduler();
-	for (;;);
+	while (1);
+
 	return 0;
 }
 /*-----------------------------------------------------------*/
@@ -235,6 +323,22 @@ void vApplicationTickHook( void )
 		vFullDemoTickHookFunction();
 	}
 	#endif /* mainCREATE_SIMPLE_BLINKY_DEMO_ONLY */
+
+	timeTick1++;
+	(communication_handle == xTaskGetCurrentTaskHandle()) ? timeTick1++ : 0;
+	(matrix_handle == xTaskGetCurrentTaskHandle()) ? timeTick2++ : 0;
+
+	/*
+	if (communication_handle == xTaskGetCurrentTaskHandle())
+	{
+		timeTick1++;
+		//printf("exequtiontime_taska % drn", iCount);
+	}
+	else
+	{
+		timeTick1 = 0;
+	}
+	*/
 }
 /*-----------------------------------------------------------*/
 
